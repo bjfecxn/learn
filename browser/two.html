@@ -15,6 +15,7 @@
             --gpu-process-bg: #dcfce7;
             --highlight-color: #3b82f6;
             --ipc-color: #ef4444;
+            --internal-comm-color: #f97316;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", "Microsoft YaHei";
@@ -63,12 +64,8 @@
         .highlight-arrow::after { border-color: transparent transparent transparent var(--highlight-color) !important; }
         .arrow.down.highlight-arrow::after { border-top-color: var(--highlight-color) !important; border-left-color: transparent !important; }
 
-        .ipc-label {
+        .comm-label {
             position: absolute;
-            top: calc(50% - 2.5rem);
-            left: 100%;
-            transform: translateX(0.5rem);
-            background-color: var(--ipc-color);
             color: white;
             padding: 0.25rem 0.5rem;
             border-radius: 0.375rem;
@@ -76,11 +73,26 @@
             font-weight: bold;
             opacity: 0;
             transition: all 0.3s ease-in-out;
+            white-space: nowrap;
             z-index: 10;
+        }
+        .ipc-label {
+            background-color: var(--ipc-color);
+            top: calc(50% + 0.5rem);
+            left: 100%;
+            transform: translateX(0.5rem);
         }
         .ipc-label.show { opacity: 1; transform: translateX(1rem); }
         .ipc-label.reverse { left: auto; right: 100%; transform: translateX(-0.5rem); }
         .ipc-label.reverse.show { transform: translateX(-1rem); }
+        
+        .internal-comm-label {
+            background-color: var(--internal-comm-color);
+            left: calc(100% - 1rem);
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .internal-comm-label.show { opacity: 1; left: 100%; }
 
         .info-container {
             position: relative;
@@ -151,46 +163,17 @@
             <div id="browser-process" class="process-column bg-blue-50">
                 <h2 class="text-xl font-bold text-center mb-4 text-blue-800">
                     浏览器进程
-                    <div class="info-container">
-                        <span class="info-icon">?</span>
-                        <div class="tooltip">
-                            <strong>设计原因 (Why):</strong>
-                            <ul class="list-disc list-inside mt-1">
-                                <li><strong>稳定性:</strong> 作为总协调，即使某个网页(渲染器进程)崩溃，浏览器本身也不会崩溃。</li>
-                                <li><strong>权限高:</strong> 负责访问文件、网络等敏感资源，统一管理，防止恶意网页直接操作。</li>
-                            </ul>
-                        </div>
-                    </div>
+                    <div class="info-container"><span class="info-icon">?</span><div class="tooltip"><strong>设计原因 (Why):</strong><ul class="list-disc list-inside mt-1"><li><strong>稳定性:</strong> 作为总协调，即使某个网页(渲染器进程)崩溃，浏览器本身也不会崩溃。</li><li><strong>权限高:</strong> 负责访问文件、网络等敏感资源，统一管理，防止恶意网页直接操作。</li></ul></div></div>
                 </h2>
-                <div id="ui-thread" class="thread-box bg-[var(--browser-process-bg)]">
-                    <div class="actor-badge">👨‍💻 CPU</div>
-                    <h3 class="font-bold">UI 线程</h3>
-                    <p class="text-sm">处理地址栏、按钮等UI</p>
-                    <div class="arrow down"></div>
-                </div>
-                <div id="network-thread" class="thread-box bg-[var(--browser-process-bg)]">
-                    <div class="actor-badge">👨‍💻 CPU</div>
-                    <h3 class="font-bold">网络线程</h3>
-                    <p class="text-sm">发起HTTP请求，下载资源</p>
-                    <div class="arrow right"></div>
-                    <div class="ipc-label" id="ipc-1">IPC: 导航指令 &amp; HTML数据</div>
-                </div>
+                <div id="ui-thread" class="thread-box bg-[var(--browser-process-bg)]"><div class="actor-badge">👨‍💻 CPU</div><h3 class="font-bold">UI 线程</h3><p class="text-sm">处理地址栏、按钮等UI</p><div class="arrow down"></div></div>
+                <div id="network-thread" class="thread-box bg-[var(--browser-process-bg)]"><div class="actor-badge">👨‍💻 CPU</div><h3 class="font-bold">网络线程</h3><p class="text-sm">发起HTTP请求，下载资源</p><div class="arrow right"></div><div class="comm-label ipc-label" id="ipc-1">IPC: 导航指令 &amp; HTML数据</div></div>
             </div>
 
             <!-- Renderer Process -->
             <div id="renderer-process" class="process-column bg-yellow-50">
                 <h2 class="text-xl font-bold text-center mb-4 text-yellow-800">
                     渲染器进程
-                    <div class="info-container">
-                        <span class="info-icon">?</span>
-                        <div class="tooltip">
-                            <strong>设计原因 (Why):</strong>
-                            <ul class="list-disc list-inside mt-1">
-                                <li><strong>安全性 (沙箱):</strong> 每个网页运行在独立的低权限“沙箱”中，代码无法访问其他网页或操作系统核心。这能有效防御恶意网站攻击。</li>
-                                <li><strong>隔离性:</strong> 一个网页的卡顿或崩溃不会影响其他网页。</li>
-                            </ul>
-                        </div>
-                    </div>
+                    <div class="info-container"><span class="info-icon">?</span><div class="tooltip"><strong>设计原因 (Why):</strong><ul class="list-disc list-inside mt-1"><li><strong>安全性 (沙箱):</strong> 每个网页运行在独立的低权限“沙箱”中，代码无法访问其他网页或操作系统核心。这能有效防御恶意网站攻击。</li><li><strong>隔离性:</strong> 一个网页的卡顿或崩溃不会影响其他网页。</li></ul></div></div>
                 </h2>
                 <div id="main-thread" class="thread-box bg-[var(--renderer-process-bg)]">
                     <div class="actor-badge">👨‍💻 CPU</div>
@@ -200,13 +183,17 @@
                     <div id="layout" class="stage-box text-sm">布局 (Layout / Reflow)</div>
                     <div id="paint" class="stage-box text-sm">绘制 (Paint)</div>
                     <div id="commit" class="stage-box text-sm">提交图层</div>
-                    <div class="arrow right"></div>
-                    <div class="ipc-label" id="ipc-2">IPC: 图层树 &amp; 绘制指令</div>
+                </div>
+                <div class="relative">
+                    <div id="main-to-compositor-arrow" class="arrow down -mt-4"></div>
+                    <div id="ipc-3" class="comm-label internal-comm-label">内部通信: 图层数据</div>
                 </div>
                  <div id="compositor-thread" class="thread-box bg-[var(--renderer-process-bg)]">
                     <div class="actor-badge">👨‍💻 CPU</div>
                     <h3 class="font-bold">合成器线程</h3>
                     <p class="text-sm">负责图层合成与滚动</p>
+                    <div class="arrow right"></div>
+                    <div class="comm-label ipc-label" id="ipc-2">IPC: 图层树 &amp; 绘制指令</div>
                 </div>
             </div>
 
@@ -214,34 +201,16 @@
             <div id="gpu-process" class="process-column bg-green-50">
                 <h2 class="text-xl font-bold text-center mb-4 text-green-800">
                     GPU 进程
-                    <div class="info-container">
-                        <span class="info-icon">?</span>
-                        <div class="tooltip">
-                            <strong>设计原因 (Why):</strong>
-                            <ul class="list-disc list-inside mt-1">
-                                <li><strong>性能:</strong> 充分利用GPU的并行计算能力，加速图形渲染，解放CPU。</li>
-                                <li><strong>驱动稳定性:</strong> GPU驱动程序可能不稳定，将其隔离在单独进程中，即使驱动崩溃也不会拖垮整个浏览器。</li>
-                            </ul>
-                        </div>
-                    </div>
+                    <div class="info-container"><span class="info-icon">?</span><div class="tooltip"><strong>设计原因 (Why):</strong><ul class="list-disc list-inside mt-1"><li><strong>性能:</strong> 充分利用GPU的并行计算能力，加速图形渲染，解放CPU。</li><li><strong>驱动稳定性:</strong> GPU驱动程序可能不稳定，将其隔离在单独进程中，即使驱动崩溃也不会拖垮整个浏览器。</li></ul></div></div>
                 </h2>
-                <div id="gpu-raster" class="thread-box bg-[var(--gpu-process-bg)]">
-                    <div class="actor-badge">🚀 GPU</div>
-                    <h3 class="font-bold">光栅化 (Raster)</h3>
-                    <p class="text-sm">将图层信息转换为像素</p>
-                    <div class="arrow down"></div>
-                </div>
-                <div id="gpu-display" class="thread-box bg-[var(--gpu-process-bg)]">
-                    <div class="actor-badge">🚀 GPU</div>
-                    <h3 class="font-bold">显示 (Display)</h3>
-                    <p class="text-sm">将最终画面渲染到屏幕</p>
-                </div>
+                <div id="gpu-raster" class="thread-box bg-[var(--gpu-process-bg)]"><div class="actor-badge">🚀 GPU</div><h3 class="font-bold">光栅化 (Raster)</h3><p class="text-sm">将图层信息转换为像素</p><div class="arrow down"></div></div>
+                <div id="gpu-display" class="thread-box bg-[var(--gpu-process-bg)]"><div class="actor-badge">🚀 GPU</div><h3 class="font-bold">显示 (Display)</h3><p class="text-sm">将最终画面渲染到屏幕</p></div>
             </div>
         </div>
     </div>
 
     <script>
-        const allElements = document.querySelectorAll('.thread-box, .stage-box, .arrow, .ipc-label');
+        const allElements = document.querySelectorAll('.thread-box, .stage-box, .arrow, .comm-label');
         let animationTimeout;
 
         const scenarios = {
@@ -250,27 +219,33 @@
                 { el: 'ui-thread .arrow', delay: 200 },
                 { el: 'network-thread', delay: 500 },
                 { el: 'network-thread .arrow', type: 'arrow', delay: 300 },
-                { el: 'ipc-1', type: 'ipc', delay: 100, text: 'IPC: 导航指令 & HTML数据' },
+                { el: 'ipc-1', type: 'ipc', delay: 100 },
                 { el: 'main-thread', delay: 500 },
-                { el: 'parse', delay: 400 },
-                { el: 'style', delay: 400 },
-                { el: 'layout', delay: 400 },
-                { el: 'paint', delay: 400 },
-                { el: 'commit', delay: 400 },
-                { el: 'main-thread .arrow', type: 'arrow', delay: 300 },
-                { el: 'ipc-2', type: 'ipc', delay: 100, text: 'IPC: 图层树 & 绘制指令' },
+                { el: 'parse', delay: 300 },
+                { el: 'style', delay: 300 },
+                { el: 'layout', delay: 300 },
+                { el: 'paint', delay: 300 },
+                { el: 'commit', delay: 300 },
+                { el: 'main-to-compositor-arrow', type: 'arrow', delay: 300 },
+                { el: 'ipc-3', type: 'ipc', delay: 100 },
+                { el: 'compositor-thread', delay: 400 },
+                { el: 'compositor-thread .arrow', type: 'arrow', delay: 300 },
+                { el: 'ipc-2', type: 'ipc', delay: 100 },
                 { el: 'gpu-raster', delay: 500 },
                 { el: 'gpu-raster .arrow', type: 'arrow', delay: 200 },
                 { el: 'gpu-display', delay: 500 },
             ],
             interaction: [
-                { el: 'ui-thread', delay: 200, note: '捕获用户点击事件' },
+                { el: 'ui-thread', delay: 200 },
                 { el: 'ipc-1', type: 'ipc', delay: 100, reverse: true, text: 'IPC: 用户输入事件 (点击坐标)' },
-                { el: 'main-thread', delay: 500, note: 'JS执行，修改DOM' },
-                { el: 'layout', delay: 400 },
-                { el: 'paint', delay: 400 },
-                { el: 'commit', delay: 400 },
-                { el: 'main-thread .arrow', type: 'arrow', delay: 300 },
+                { el: 'main-thread', delay: 500 },
+                { el: 'layout', delay: 300 },
+                { el: 'paint', delay: 300 },
+                { el: 'commit', delay: 300 },
+                { el: 'main-to-compositor-arrow', type: 'arrow', delay: 300 },
+                { el: 'ipc-3', type: 'ipc', delay: 100 },
+                { el: 'compositor-thread', delay: 400 },
+                { el: 'compositor-thread .arrow', type: 'arrow', delay: 300 },
                 { el: 'ipc-2', type: 'ipc', delay: 100, text: 'IPC: 更新后的绘制指令' },
                 { el: 'gpu-raster', delay: 500 },
                 { el: 'gpu-raster .arrow', type: 'arrow', delay: 200 },
@@ -283,11 +258,9 @@
             allElements.forEach(el => {
                 el.classList.remove('highlight', 'highlight-arrow', 'show');
             });
-            const ipc1 = document.getElementById('ipc-1');
-            const ipc2 = document.getElementById('ipc-2');
-            ipc1.classList.remove('reverse');
-            ipc1.textContent = 'IPC: 导航指令 & HTML数据';
-            ipc2.textContent = 'IPC: 图层树 & 绘制指令';
+            document.getElementById('ipc-1').classList.remove('reverse');
+            document.getElementById('ipc-1').textContent = 'IPC: 导航指令 & HTML数据';
+            document.getElementById('ipc-2').textContent = 'IPC: 图层树 & 绘制指令';
         }
 
         function runAnimation(scenarioName) {
