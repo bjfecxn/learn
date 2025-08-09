@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浏览器渲染流水线可视化</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --text-color: #1e293b;
+            --border-color: #cbd5e1;
+            --accent-color: #3b82f6;
+            --main-thread-bg: #fef3c7; /* yellow-100 */
+            --compositor-bg: #dbeafe; /* blue-100 */
+            --gpu-bg: #dcfce7; /* green-100 */
+            --network-bg: #e0e7ff; /* indigo-100 */
+            --highlight-reflow: #f87171; /* red-400 */
+            --highlight-repaint: #fb923c; /* orange-400 */
+            --highlight-composite: #4ade80; /* green-400 */
+            --arrow-color: #94a3b8;
+        }
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Arial', 'sans-serif', 'Microsoft YaHei';
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .pipeline-box {
+            border: 2px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.5s ease-in-out;
+            position: relative;
+        }
+        .arrow {
+            position: relative;
+            height: 3rem;
+            width: 2px;
+            background-color: var(--arrow-color);
+            margin: 0 auto;
+            transition: background-color 0.5s ease-in-out;
+        }
+        .arrow::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid var(--arrow-color);
+            transition: border-top-color 0.5s ease-in-out;
+        }
+        .highlight {
+            border-color: var(--accent-color) !important;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            transform: scale(1.05);
+        }
+        .highlight-arrow .arrow { background-color: var(--accent-color); }
+        .highlight-arrow .arrow::after { border-top-color: var(--accent-color); }
+
+        .reflow-path { border-color: var(--highlight-reflow); box-shadow: 0 0 15px var(--highlight-reflow); }
+        .reflow-arrow .arrow { background-color: var(--highlight-reflow); }
+        .reflow-arrow .arrow::after { border-top-color: var(--highlight-reflow); }
+
+        .repaint-path { border-color: var(--highlight-repaint); box-shadow: 0 0 15px var(--highlight-repaint); }
+        .repaint-arrow .arrow { background-color: var(--highlight-repaint); }
+        .repaint-arrow .arrow::after { border-top-color: var(--highlight-repaint); }
+        
+        .composite-path { border-color: var(--highlight-composite); box-shadow: 0 0 15px var(--highlight-composite); }
+        .composite-arrow .arrow { background-color: var(--highlight-composite); }
+        .composite-arrow .arrow::after { border-top-color: var(--highlight-composite); }
+        
+        .actor-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            white-space: nowrap;
+        }
+
+        .js-trigger {
+            position: absolute;
+            left: -120px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 110px;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            text-align: center;
+            opacity: 0;
+            transition: all 0.5s ease-in-out;
+            background-color: #f1f5f9;
+            border: 2px dashed var(--border-color);
+        }
+        .js-trigger.show {
+            opacity: 1;
+            left: -140px;
+        }
+        .js-trigger::after {
+            content: '→';
+            font-size: 1.5rem;
+            position: absolute;
+            right: -25px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--arrow-color);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold">浏览器渲染流水线可视化</h1>
+            <p class="mt-2 text-slate-600">点击下方按钮，观察不同操作如何触发不同的渲染路径。</p>
+        </div>
+
+        <div id="controls" class="flex flex-wrap justify-center gap-3 mb-10">
+            <button data-path="initial" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-all">初始加载</button>
+            <button data-path="reflow" class="px-4 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-all">触发重排 (改宽度)</button>
+            <button data-path="repaint" class="px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg shadow-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-opacity-75 transition-all">触发重绘 (改颜色)</button>
+            <button data-path="composite" class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition-all">触发合成 (改Transform)</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+            
+            <!-- 网络与浏览器进程 -->
+            <div class="flex flex-col items-center">
+                 <h2 class="text-xl font-bold mb-4 text-slate-700">网络 & 浏览器进程</h2>
+                 <div id="network-request" class="pipeline-box w-full bg-indigo-100">
+                    <div class="actor-badge bg-indigo-500">👨‍💻 CPU</div>
+                    <h3 class="font-bold">1. 网络请求</h3>
+                    <p class="text-sm text-slate-600">用户输入URL，浏览器进程通过网络线程请求HTML文件。</p>
+                 </div>
+            </div>
+
+            <!-- 渲染器进程 - 主线程 -->
+            <div class="flex flex-col items-center">
+                <h2 class="text-xl font-bold mb-4 text-slate-700">渲染器进程 (主线程)</h2>
+                
+                <div id="parse" class="pipeline-box w-full bg-yellow-100">
+                    <div class="actor-badge bg-yellow-500">👨‍💻 CPU</div>
+                    <h3 class="font-bold">2. 解析 (Parse)</h3>
+                    <p class="text-sm text-slate-600">HTML → DOM<br>CSS → CSSOM</p>
+                </div>
+                <div id="arrow-parse" class="arrow-container"><div class="arrow"></div></div>
+                
+                <div id="style" class="pipeline-box w-full bg-yellow-100">
+                     <div class="actor-badge bg-yellow-500">👨‍💻 CPU</div>
+                    <h3 class="font-bold">3. 样式 (Style)</h3>
+                    <p class="text-sm text-slate-600">合并DOM和CSSOM，生成渲染树 (Render Tree)。</p>
+                </div>
+                <div id="arrow-style" class="arrow-container"><div class="arrow"></div></div>
+
+                <div id="layout" class="pipeline-box w-full bg-yellow-100">
+                    <div class="js-trigger" id="js-trigger-reflow">JS 操作<br>el.style.width</div>
+                    <div class="actor-badge bg-yellow-500">👨‍💻 CPU</div>
+                    <h3 class="font-bold">4. 布局 (Layout / Reflow)</h3>
+                    <p class="text-sm text-slate-600">计算每个节点的几何信息 (位置、大小)。<br><span class="font-bold text-red-600">开销大</span></p>
+                </div>
+                <div id="arrow-layout" class="arrow-container"><div class="arrow"></div></div>
+
+                <div id="paint" class="pipeline-box w-full bg-yellow-100">
+                    <div class="js-trigger" id="js-trigger-repaint">JS 操作<br>el.style.color</div>
+                    <div class="actor-badge bg-yellow-500">👨‍💻 CPU</div>
+                    <h3 class="font-bold">5. 绘制 (Paint / Repaint)</h3>
+                    <p class="text-sm text-slate-600">生成绘制指令清单。<br><span class="font-bold text-orange-600">开销中等</span></p>
+                </div>
+                <div id="arrow-paint" class="arrow-container"><div class="arrow"></div></div>
+
+                <div id="commit" class="pipeline-box w-full bg-yellow-100">
+                    <h3 class="font-bold">6. 提交 (Commit)</h3>
+                    <p class="text-sm text-slate-600">将图层信息和绘制指令提交给合成器线程。</p>
+                </div>
+            </div>
+
+            <!-- 合成器线程 & GPU -->
+            <div class="flex flex-col items-center">
+                <h2 class="text-xl font-bold mb-4 text-slate-700">合成器线程 & GPU</h2>
+
+                <div id="composite" class="pipeline-box w-full bg-blue-100">
+                    <div class="js-trigger" id="js-trigger-composite">JS 操作<br>el.style.transform</div>
+                    <div class="actor-badge bg-blue-500">👨‍💻 CPU</div>
+                    <h3 class="font-bold">7. 合成 (Composite)</h3>
+                    <p class="text-sm text-slate-600">合成器线程接收信息，准备进行光栅化和合成。<br><span class="font-bold text-green-600">开销低</span></p>
+                </div>
+                <div id="arrow-composite" class="arrow-container"><div class="arrow"></div></div>
+
+                <div id="raster-gpu" class="pipeline-box w-full bg-green-100">
+                     <div class="actor-badge bg-green-500">🚀 GPU</div>
+                    <h3 class="font-bold">8. 光栅化 & 显示</h3>
+                    <p class="text-sm text-slate-600">GPU将图层转换为像素，并合成最终画面显示在屏幕上。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const controls = document.getElementById('controls');
+        const allBoxes = document.querySelectorAll('.pipeline-box');
+        const allArrows = document.querySelectorAll('.arrow-container');
+        const allJsTriggers = document.querySelectorAll('.js-trigger');
+
+        const paths = {
+            initial: ['network-request', 'parse', 'style', 'layout', 'paint', 'commit', 'composite', 'raster-gpu'],
+            reflow: ['layout', 'paint', 'commit', 'composite', 'raster-gpu'],
+            repaint: ['paint', 'commit', 'composite', 'raster-gpu'],
+            composite: ['composite', 'raster-gpu']
+        };
+
+        function resetState() {
+            allBoxes.forEach(box => box.classList.remove('highlight', 'reflow-path', 'repaint-path', 'composite-path'));
+            allArrows.forEach(arrow => arrow.classList.remove('highlight-arrow', 'reflow-arrow', 'repaint-arrow', 'composite-arrow'));
+            allJsTriggers.forEach(trigger => trigger.classList.remove('show', 'reflow-path', 'repaint-path', 'composite-path'));
+        }
+
+        function highlightPath(pathName) {
+            resetState();
+            const path = paths[pathName];
+            const pathClass = `${pathName}-path`;
+            const arrowClass = `${pathName}-arrow`;
+
+            path.forEach((id, index) => {
+                setTimeout(() => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.classList.add(pathClass);
+                    }
+                    const arrowElement = document.getElementById(`arrow-${path[index-1]}`);
+                    if(arrowElement) {
+                        arrowElement.classList.add(arrowClass);
+                    }
+                }, index * 200);
+            });
+
+            // Show JS trigger
+            const triggerId = `js-trigger-${pathName}`;
+            const triggerEl = document.getElementById(triggerId);
+            if(triggerEl) {
+                setTimeout(() => {
+                    triggerEl.classList.add('show');
+                    triggerEl.classList.add(pathClass);
+                }, 100);
+            }
+        }
+        
+        // Use a more specific path for 'initial' to use the generic highlight classes
+        function highlightInitialPath() {
+            resetState();
+            const path = paths['initial'];
+            path.forEach((id, index) => {
+                 setTimeout(() => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.classList.add('highlight');
+                    }
+                    const arrowElement = document.getElementById(`arrow-${path[index-1]}`);
+                    if(arrowElement) {
+                        arrowElement.classList.add('highlight-arrow');
+                    }
+                }, index * 200);
+            });
+        }
+
+
+        controls.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                const pathName = e.target.dataset.path;
+                if(pathName === 'initial') {
+                    highlightInitialPath();
+                } else {
+                    highlightPath(pathName);
+                }
+            }
+        });
+
+        // Trigger initial load animation on start
+        window.addEventListener('load', () => {
+            highlightInitialPath();
+        });
+    </script>
+</body>
+</html>
